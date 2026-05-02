@@ -1,6 +1,6 @@
 --[=[
     @class CameraService
-    Provides a high-level API for a custom scripted third-person camera.
+    Custom scripted third person camera
     Features: Smooth interpolation, Aiming states, Camera Bobbing, Tilt, and Occlusion.
 ]=]
 
@@ -77,7 +77,7 @@ function CameraService.new()
 end
 
 --[=[
-    @description Initializes character references and sets up cleanup connections.
+    @description Initializes character references and sets up obliterator connection
     @private
 ]=]
 function CameraService:SetupCharacter()
@@ -103,7 +103,7 @@ function CameraService:ApplyShake(intensity: number)
 end
 
 --[=[
-    @description Calculates camera offset to prevent clipping through geometry.
+    @description Calculates camera offset to prevent clipping through objects
     @param origin Vector3 -- The starting position of the check (usually RootPart).
     @param targetOffset Vector3 -- The desired relative offset.
     @param ignoreList {Instance} -- Instances for the raycast to ignore.
