@@ -1,6 +1,6 @@
 --[=[
     @class CameraService
-    Custom scripted third person camera
+    Provides a high-level API for a custom scripted third-person camera.
     Features: Smooth interpolation, Aiming states, Camera Bobbing, Tilt, and Occlusion.
 ]=]
 
@@ -17,6 +17,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Dependencies
 local Janitor = require(ReplicatedStorage.Janitor)
+local Signal = require(ReplicatedStorage.Signal)
 
 -- Types
 type Config = {
@@ -27,6 +28,30 @@ type Config = {
 	TiltIntensity: number,
 	SensitivyMultiplier: number,
 }
+
+export type Camera = {
+	Camera: Camera,
+	Player: Player,
+	
+	Obliterator: Janitor.Janitor,
+	
+	Config: Config,
+	TargetConfig: Config,
+	
+	CurrentRotationX: number,
+	CurrentRotationY: number,
+	
+	ShakeIntensity: number,
+	TiltAngle: number,
+	IsAiming: boolean,
+	
+	CameraWeight: number,
+	
+	-- no types for these :(
+	ShakeApplied: any,
+	TiltApplied: any,
+	AimingChanged: any,
+} & typeof(CameraService)
 
 -- Constants
 local DEFAULT_CONFIG: Config = {
@@ -47,12 +72,14 @@ local AIM_CONFIG: Config = {
 	SensitivyMultiplier = 0.5
 }
 
+local DEBUG_ENABLED = false
+
 --[=[
     @description Creates a new instance of the CameraService.
     @return CameraService
 ]=]
 function CameraService.new()
-	local self = setmetatable({}, CameraService)
+	local self = setmetatable({}, CameraService) :: Camera
 
 	self.Camera = Workspace.CurrentCamera
 	self.Player = game.Players.LocalPlayer :: Player
@@ -70,6 +97,37 @@ function CameraService.new()
 	self.IsAiming = false
 
 	self.CameraWeight = 0
+	
+	-- Signals
+	self.ShakeApplied = Signal.new()
+	
+	if DEBUG_ENABLED then
+		self.ShakeApplied:Connect(function(shakeIntensity: number)
+			if DEBUG_ENABLED then
+				print("Shake Applied:", shakeIntensity)
+			end
+		end)
+	end
+	
+	self.TiltApplied = Signal.new()
+	
+	if DEBUG_ENABLED then
+		self.TiltApplied:Connect(function(tiltAngle: number)
+			if DEBUG_ENABLED then
+				print("Tilt Applied:", tiltAngle)
+			end
+		end)
+	end
+	
+	self.AimingChanged = Signal.new()
+	
+	if DEBUG_ENABLED then
+		self.AimingChanged:Connect(function(state: boolean)
+			if DEBUG_ENABLED then
+				print("Aiming State Changed:", state)
+			end
+		end)
+	end
 
 	self:SetupCharacter()
 
@@ -77,7 +135,7 @@ function CameraService.new()
 end
 
 --[=[
-    @description Initializes character references and sets up obliterator connection
+    @description Initializes character references and sets up cleanup connections.
     @private
 ]=]
 function CameraService:SetupCharacter()
@@ -100,10 +158,11 @@ end
 ]=]
 function CameraService:ApplyShake(intensity: number)
 	self.ShakeIntensity = intensity
+	self.ShakeApplied:Fire(intensity)
 end
 
 --[=[
-    @description Calculates camera offset to prevent clipping through objects
+    @description Calculates camera offset to prevent clipping through geometry.
     @param origin Vector3 -- The starting position of the check (usually RootPart).
     @param targetOffset Vector3 -- The desired relative offset.
     @param ignoreList {Instance} -- Instances for the raycast to ignore.
@@ -131,6 +190,7 @@ function CameraService:UpdateTilt(dt: number)
 	local moveDirection = self.RootPart.CFrame:VectorToObjectSpace(self.Humanoid.MoveDirection)
 	local targetTilt = -moveDirection.X * self.Config.TiltIntensity
 	self.TiltAngle = math.lerp(self.TiltAngle, targetTilt, 0.1)
+	self.TiltApplied:Fire(self.TiltAngle)
 end
 
 --[=[
@@ -158,11 +218,157 @@ end
 function CameraService:SetAiming(isAiming: boolean)
 	self.IsAiming = isAiming
 	self.TargetConfig = isAiming and AIM_CONFIG or DEFAULT_CONFIG
+	self.AimingChanged:Fire(isAiming)
+end
+
+--[=[
+    @description Returns the current camera offset.
+    @return Vector3
+]=]
+function CameraService:GetOffset(): Vector3
+	return self.Config.Offset
+end
+
+--[=[
+    @description Returns the current smoothness value.
+    @return number
+]=]
+function CameraService:GetSmoothness(): number
+	return self.Config.Smoothness
+end
+
+--[=[
+    @description Returns the current FOV.
+    @return number
+]=]
+function CameraService:GetFOV(): number
+	return self.Config.FOV
+end
+
+--[=[
+    @description Returns the current bobbing intensity.
+    @return number
+]=]
+function CameraService:GetBobbingIntensity(): number
+	return self.Config.BobbingIntensity
+end
+
+--[=[
+    @description Returns the current tilt intensity.
+    @return number
+]=]
+function CameraService:GetTiltIntensity(): number
+	return self.Config.TiltIntensity
+end
+
+--[=[
+    @description Returns the current sensitivity multiplier.
+    @return number
+]=]
+function CameraService:GetSensitivityMultiplier(): number
+	return self.Config.SensitivyMultiplier
+end
+
+--[=[
+    @description Returns the current rotation X angle.
+    @return number
+]=]
+function CameraService:GetRotationX(): number
+	return self.CurrentRotationX
+end
+
+--[=[
+    @description Returns the current rotation Y angle.
+    @return number
+]=]
+function CameraService:GetRotationY(): number
+	return self.CurrentRotationY
+end
+
+--[=[
+    @description Returns the current shake intensity.
+    @return number
+]=]
+function CameraService:GetShakeIntensity(): number
+	return self.ShakeIntensity
+end
+
+--[=[
+    @description Returns the current tilt angle.
+    @return number
+]=]
+function CameraService:GetTiltAngle(): number
+	return self.TiltAngle
+end
+
+--[=[
+    @description Returns whether the camera is in aiming mode.
+    @return boolean
+]=]
+function CameraService:IsAiming(): boolean
+	return self.IsAiming
+end
+
+--[=[
+    @description Returns the current camera weight (for head jitter).
+    @return number
+]=]
+function CameraService:GetCameraWeight(): number
+	return self.CameraWeight
+end
+
+--[=[
+    @description Returns the current character instance.
+    @return Model?
+]=]
+function CameraService:GetCharacter(): Model?
+	return self.Character
+end
+
+--[=[
+    @description Returns the current root part.
+    @return BasePart?
+]=]
+function CameraService:GetRootPart(): BasePart?
+	return self.RootPart
+end
+
+--[=[
+    @description Returns the current humanoid.
+    @return Humanoid?
+]=]
+function CameraService:GetHumanoid(): Humanoid?
+	return self.Humanoid
+end
+
+--[=[
+    @description Returns the current head part.
+    @return BasePart?
+]=]
+function CameraService:GetHead(): BasePart?
+	return self.Head
+end
+
+--[=[
+    @description Returns the target config (aiming or default).
+    @return Config
+]=]
+function CameraService:GetTargetConfig(): Config
+	return self.TargetConfig
+end
+
+--[=[
+    @description Returns whether debug mode is enabled.
+    @return boolean
+]=]
+function CameraService:IsDebugEnabled(): boolean
+	return DEBUG_ENABLED
 end
 
 --[=[
     @description Starts the camera loop, locks the mouse, and binds input actions.
 ]=]
+
 function CameraService:Start()
 	self.Camera.CameraType = Enum.CameraType.Scriptable
 	UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
