@@ -1,3 +1,6 @@
+-- 1111alesai113 (roblox)
+-- teve_ee (discord)
+
 --[=[
     @class CameraService
     Provides a high-level API for a custom scripted third-person camera.
